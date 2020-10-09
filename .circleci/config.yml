@@ -13,8 +13,8 @@ references:
   cache:
     yarn: &YARN_CACHE_KEY waypoint-ui-v1-{{ checksum "ui/yarn.lock" }}
     rubygem: &RUBYGEM_CACHE_KEY static-site-gems-v1-{{ checksum "Gemfile.lock" }}
-    ui-dist: &UI_DIST_CACHE_KEY ui-dist-v1-{{ checksum "package.json"}}
-    bindata: &BINDATA_CACHE_KEY bindata-v1-{{checksum ""}}
+    ui-dist: &UI_DIST_CACHE_KEY ui-dist-v1-{{ checksum "ui/package.json"}}
+    bindata: &BINDATA_CACHE_KEY bindata-v1-{{ .Branch }}
 
   environment: &ENVIRONMENT
     TEST_RESULTS_DIR: *TEST_RESULTS_DIR
@@ -141,6 +141,7 @@ jobs:
           path: *TEST_RESULTS_DIR
       - store_artifacts:
           path: *TEST_RESULTS_DIR
+  
   # create a development build
   dev-build:
     docker:
@@ -306,6 +307,8 @@ jobs:
       - run: make static-assets
       - save_cache:
           key: *BINDATA_CACHE_KEY
+          paths:
+            - internal/server/gen/bindata_ui.go
 
   poc-publish-static-assets:
     docker:
@@ -315,7 +318,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: *UI_DIST_CACHE_KEY
+          key: *BINDATA_CACHE_KEY
       - run: ls -al internal/server/gen/
 
   # build static-assets file and commit
