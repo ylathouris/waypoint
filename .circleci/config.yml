@@ -13,6 +13,8 @@ references:
   cache:
     yarn: &YARN_CACHE_KEY waypoint-ui-v1-{{ checksum "ui/yarn.lock" }}
     rubygem: &RUBYGEM_CACHE_KEY static-site-gems-v1-{{ checksum "Gemfile.lock" }}
+    ui-dist: &UI_DIST_CACHE_KEY ui-dist-v1-{{ checksum "package.json"}}
+    bindata: &BINDATA_CACHE_KEY bindata-v1-{{checksum ""}}
 
   environment: &ENVIRONMENT
     TEST_RESULTS_DIR: *TEST_RESULTS_DIR
@@ -274,7 +276,13 @@ jobs:
       - checkout
       - restore_cache:
           key: *YARN_CACHE_KEY
+      - restore_cache:
+          key: *UI_DIST_CACHE_KEY
       - run: cd ui && make
+      - save_cache:
+          key: *UI_DIST_CACHE_KEY
+          paths:
+            - ui/dist
       # saves the build to a workspace to be passed to a downstream job
       - persist_to_workspace:
           root: .
@@ -289,17 +297,26 @@ jobs:
       <<: *ENVIRONMENT
     steps:
       - checkout
-      - attach_workspace:
-          at: .
+      - restore_cache:
+          key: *UI_DIST_CACHE_KEY
       - add_ssh_keys:
           fingerprints:
             - "c6:96:98:82:dc:04:6c:39:dd:ac:83:05:e3:15:1c:98"
       - run: go get github.com/kevinburke/go-bindata/...
       - run: make static-assets
-      - persist_to_workspace:
-          root: .
-          paths:
-            - ./internal/server/gen/bindata_ui.go
+      - save_cache:
+          key: *BINDATA_CACHE_KEY
+
+  poc-publish-static-assets:
+    docker:
+      - image: *GOLANG_IMAGE
+    environment:
+      <<: *ENVIRONMENT
+    steps:
+      - checkout
+      - restore_cache:
+          key: *UI_DIST_CACHE_KEY
+      - run: ls -al internal/server/gen/
 
   # build static-assets file and commit
   publish-static-assets:
@@ -381,6 +398,9 @@ workflows:
       - build-static-assets:
           requires:
             - ember-build-prod
+      - poc-publish-static-assets:
+          requires:
+            - build-static-assets
       - dev-build:
           requires:
             - build-static-assets
